@@ -44,7 +44,10 @@ int MaxIt(HWND window, int options = 0)
         return -1;
     }
 
-	// max it
+	// switch it to norml state, first. In case that the window is already maximized;
+	ShowWindow(window, SW_SHOWNORMAL);
+
+	// then max it
 	ShowWindow(window, SW_SHOWMAXIMIZED);
 
     return 0;
