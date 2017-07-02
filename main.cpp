@@ -6,12 +6,105 @@
 #define LogInfo(format, ...) fprintf(stdout, format, __VA_ARGS__)
 #define LogError(format, ...) fprintf(stderr, format, __VA_ARGS__)
 
-enum MaxOptions : int
+void AdjustAspectRatio(int & w, int & h, const int sw, const int sh)
 {
-	BORDERLESS = 1,
+	if (w * sh > h * sw)
+	{
+		// too wide, narrow it
+		w = h * sw / sh;
+	}
+	else
+	{
+		h = w * sh / sw;
+	}
 };
 
-int MaxIt(HWND window, int options = 0)
+// Make windows covers the whole desktop but not a taskbar
+int MakeFullDesktop(HWND window)
+{
+	if (!IsWindow(window))
+	{
+		LogError("0x%X is not a valid window handle", (int)window);
+		return -1;
+	}
+
+	// get current display resolution
+	HMONITOR hmon = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi = { sizeof(mi) };
+	if (!GetMonitorInfo(hmon, &mi))
+	{
+		LogError("GetMonitorInfo() failed");
+		return -1;
+	}
+	int x = mi.rcWork.left;
+	int y = mi.rcWork.top;
+	int w = mi.rcWork.right - mi.rcWork.left;
+	int h = mi.rcWork.bottom - mi.rcWork.top;
+	// adjust aspect ratio to match full screen ratio.
+	AdjustAspectRatio(w, h, mi.rcMonitor.right - mi.rcMonitor.left, mi.rcMonitor.bottom - mi.rcMonitor.top);
+
+	// switch it to norml state, in case it is maximized.
+	ShowWindow(window, SW_SHOWNORMAL);
+
+	// update window style to borderless
+	if (!SetWindowLongPtr(window, GWL_STYLE, WS_POPUP | WS_VISIBLE))
+	{
+		int error = GetLastError();
+		LogError("SetWindowLongPtr(GWL_STYLE, ...) failed. Error=0x%X", error);
+		return -1;
+	}
+
+	// set size and position of the window (make it top most, so it covers the taskbar too)
+	SetWindowPos(window, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+	UpdateWindow(window);
+
+	// done
+	return 0;
+}
+
+// Make the window covers the full screen including task bar.
+int MakeFullscreen(HWND window)
+{
+	if (!IsWindow(window))
+	{
+		LogError("0x%X is not a valid window handle", (int)window);
+		return -1;
+	}
+
+	// get current display resolution
+	HMONITOR hmon = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi = { sizeof(mi) };
+	if (!GetMonitorInfo(hmon, &mi))
+	{
+		LogError("GetMonitorInfo() failed");
+		return -1;
+	}
+	int x = mi.rcMonitor.left;
+	int y = mi.rcMonitor.top;
+	int w = mi.rcMonitor.right - mi.rcMonitor.left;
+	int h = mi.rcMonitor.bottom - mi.rcMonitor.top;
+
+	// switch it to norml state, in case it is maximized.
+	ShowWindow(window, SW_SHOWNORMAL);
+
+	// update window style to borderless
+	if (!SetWindowLongPtr(window, GWL_STYLE, WS_POPUP | WS_VISIBLE))
+	{
+		int error = GetLastError();
+		LogError("SetWindowLongPtr(GWL_STYLE, ...) failed. Error=0x%X", error);
+		return -1;
+	}
+
+	// set size and position of the window (make it top most, so it covers the taskbar too)
+	SetWindowPos(window, HWND_TOP, x, y, w, h, SWP_FRAMECHANGED | SWP_SHOWWINDOW);
+	UpdateWindow(window);
+
+	// done
+	return 0;
+}
+
+// Maximize the window (not changing any other styles)
+int MaxIt(HWND window)
 {
     if (!IsWindow(window))
     {
@@ -21,20 +114,7 @@ int MaxIt(HWND window, int options = 0)
 
     int current = GetWindowLongPtr(window, GWL_STYLE);
 
-	int newStyle = current;
-
-	// make it maximizable
-	if (0 == (WS_MAXIMIZEBOX & current))
-	{
-		newStyle |= WS_MAXIMIZEBOX;
-	}
-
-	// make it borderless
-	if (options & BORDERLESS)
-	{
-		newStyle &= ~WS_BORDER;
-		newStyle &= ~WS_CAPTION;
-	}
+	int newStyle = current | WS_MAXIMIZEBOX;
 
 	// update window style
 	if (newStyle != current && 0 == SetWindowLongPtr(window, GWL_STYLE, newStyle))
@@ -104,7 +184,7 @@ int main(int argc, const char * argv[])
     // Determine the window handle based on argv[1]
     const char * a1 = argv[1];
     HWND targetWindow = 0;
-	int options = 0;
+	bool borderless = false;
     if (0 == _strcmpi("357", a1))
     {
         // find main window of 357 (launch.exe)
@@ -112,8 +192,32 @@ int main(int argc, const char * argv[])
         if (0 == targetWindow)
         {
             LogError("Can't find 357's main window.");
-        }
+			return -1;
+		}
+		return MaxIt(targetWindow);
     }
+	else if (0 == _strcmpi("sle", a1))
+	{
+		// find main window of skyrim legendary edition
+		targetWindow = FindWindowW(L"Skyrim", nullptr);
+		if (0 == targetWindow)
+		{
+			LogError("Can't find Skyrim Special Edition main window.");
+			return -1;
+		}
+		return MaxIt(targetWindow);
+	}
+	else if (0 == _strcmpi("sse", a1))
+	{
+		// find main window of skyrim special edition
+		targetWindow = FindWindowW(L"Skyrim Special Edition", L"Skyrim Special Edition");
+		if (0 == targetWindow)
+		{
+			LogError("Can't find Skyrim Special Edition main window.");
+			return -1;
+		}
+		return MakeFullscreen(targetWindow);
+	}
 	else if (0 == _strcmpi("2b", a1))
 	{
 		// find main window of Nier: Automata
@@ -121,21 +225,29 @@ int main(int argc, const char * argv[])
 		if (0 == targetWindow)
 		{
 			LogError("Can't find NieR:Automata's main window.");
+			return -1;
 		}
-		options = BORDERLESS;
+		return MakeFullDesktop(targetWindow);
 	}
-    else
+	else if (0 == _strcmpi("2b-fs", a1))
+	{
+		// find main window of Nier: Automata
+		targetWindow = FindWindowW(L"NieR:Automata_MainWindow", L"NieR:Automata");
+		if (0 == targetWindow)
+		{
+			LogError("Can't find NieR:Automata's main window.");
+			return -1;
+		}
+		return MakeFullscreen(targetWindow);
+	}
+	else
     {
         targetWindow = (HWND)strtol(a1, nullptr, 16);
         if (0 == targetWindow)
         {
             LogError("%s is not a valid hex number.", a1);
-        }
+			return -1;
+		}
+		return MaxIt(targetWindow);
     }
-    if (0 == targetWindow)
-    {
-        return -1;
-    }
-
-    return MaxIt(targetWindow, options);
 }
