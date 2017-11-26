@@ -114,7 +114,7 @@ int MaxIt(HWND window)
 
     int current = GetWindowLongPtr(window, GWL_STYLE);
 
-	int newStyle = current | WS_MAXIMIZEBOX;
+	int newStyle = current | WS_MAXIMIZEBOX | WS_SIZEBOX;
 
 	// update window style
 	if (newStyle != current && 0 == SetWindowLongPtr(window, GWL_STYLE, newStyle))
@@ -205,7 +205,7 @@ int main(int argc, const char * argv[])
 			LogError("Can't find Skyrim Special Edition main window.");
 			return -1;
 		}
-		return MaxIt(targetWindow);
+		return MakeFullscreen(targetWindow);
 	}
 	else if (0 == _strcmpi("sse", a1))
 	{
@@ -239,6 +239,17 @@ int main(int argc, const char * argv[])
 			return -1;
 		}
 		return MakeFullscreen(targetWindow);
+	}
+	else if (0 == _strcmpi("bdo", a1))
+	{
+		// find main window of Nier: Automata
+		targetWindow = FindWindowW(L"BlackDesertWindowClass", nullptr);
+		if (0 == targetWindow)
+		{
+			LogError("Can't find Blade Desert Online main window.");
+			return -1;
+		}
+		return MaxIt(targetWindow);
 	}
 	else
     {
