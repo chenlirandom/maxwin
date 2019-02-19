@@ -251,7 +251,18 @@ int main(int argc, const char * argv[])
 		}
 		return MaxIt(targetWindow);
 	}
-	else
+    else if (0 == _strcmpi("unity", a1))
+    {
+        // find main window of unity based game.
+        targetWindow = FindWindowW(L"UnityWndClass", nullptr);
+        if (0 == targetWindow)
+        {
+            LogError("Can't find Unity main window.");
+            return -1;
+        }
+        return MakeFullscreen(targetWindow);
+    }
+    else
     {
         targetWindow = (HWND)strtol(a1, nullptr, 16);
         if (0 == targetWindow)
